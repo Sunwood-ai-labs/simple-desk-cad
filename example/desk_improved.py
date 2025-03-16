@@ -1,94 +1,115 @@
 import cadquery as cq
 
 # パラメータ
-desk_length = 1200  # 机の長さ (mm)
-desk_width = 600    # 机の幅 (mm)
-desk_height = 720   # 机の高さ (mm)
-top_thickness = 25  # 天板の厚さ (mm)
-leg_size = 50       # 脚の断面サイズ (mm)
-corner_radius = 20  # 角の丸みの半径 (mm)
-shell_thickness = 2 # 肉抜き後の壁厚 (mm)
+desk_length = 1200    # 机の長さ (mm)
+desk_width = 600      # 机の幅 (mm)
+desk_height = 720     # 机の高さ (mm)
+top_thickness = 25    # 天板の厚さ (mm)
+leg_size = 60         # 脚の断面サイズ (mm)
+wall_thickness = 4    # 脚の肉厚 (mm)
 
-# 天板を作成（角を丸くする）
-desktop = (cq.Workplane("XY")
-          .box(desk_length, desk_width, top_thickness)
-          .edges("|Z")
-          .fillet(corner_radius)
-          .translate((0, 0, desk_height - top_thickness/2)))
+# フィレットとエッジのパラメータ
+top_fillet = 10       # 天板のフィレット半径
+leg_fillet = 5        # 脚のフィレット半径
+edge_fillet = 2       # 細かいエッジのフィレット
 
-# 天板の裏側に大きな肉抜きパターンを作成
-desktop = (desktop
-          .faces("<Z")
-          .workplane(offset=-shell_thickness)
-          .rect(desk_length-60, desk_width-60)  # より大きな肉抜き
-          .cutBlind(top_thickness - 2*shell_thickness))
+# ガラス板用パラメータ
+glass_thickness = 8   # ガラス板の厚さ
+glass_margin = 20     # ガラス板を載せる縁の幅
+glass_depth = 5       # ガラス板を埋め込む深さ
 
-# さらに補強リブを残して追加の肉抜き
-rib_width = 20  # リブの幅
-for x in [-desk_length/4, 0, desk_length/4]:
-    desktop = (desktop
-              .faces("<Z")
-              .workplane()
-              .moveTo(x, 0)
-              .rect(rib_width, desk_width-60)
-              .extrude(top_thickness - 2*shell_thickness))
-
-for y in [-desk_width/4, 0, desk_width/4]:
-    desktop = (desktop
-              .faces("<Z")
-              .workplane()
-              .moveTo(0, y)
-              .rect(desk_length-60, rib_width)
-              .extrude(top_thickness - 2*shell_thickness))
-
-# 脚を作成する関数（肉抜きと丸み付き）
-def create_leg(x, y):
+def create_hollow_leg(x, y):
+    """中空構造の脚を作成する"""
     # 外側の脚
     outer_leg = (cq.Workplane("XY")
                 .box(leg_size, leg_size, desk_height - top_thickness))
     
-    # 角を丸くする
-    outer_leg = (outer_leg
-                .edges("|Z")
-                .fillet(corner_radius/2))  # 天板の半分の丸み
+    # 脚の垂直エッジにフィレット
+    outer_leg = (outer_leg.edges("|Z")
+                .fillet(leg_fillet))
     
-    # 内側の大きな肉抜き
-    inner_cut = (cq.Workplane("XY")
-                .box(leg_size - 2*shell_thickness, 
-                     leg_size - 2*shell_thickness, 
-                     desk_height - top_thickness - 2*shell_thickness))
+    # 内側の空洞
+    inner_size = leg_size - (wall_thickness * 2)
+    inner_height = desk_height - top_thickness - wall_thickness
+    inner_void = (cq.Workplane("XY")
+                 .box(inner_size, inner_size, inner_height)
+                 .translate((0, 0, wall_thickness/2)))
     
-    # 追加の肉抜きパターン（四隅に穴）
-    hole_size = 15
-    hole_offset = leg_size/4
+    # 補強リブ（十字型）
+    rib_thickness = 3
+    rib_v = (cq.Workplane("XY")
+             .box(rib_thickness, inner_size, inner_height)
+             .translate((0, 0, wall_thickness/2)))
+    rib_h = (cq.Workplane("XY")
+             .box(inner_size, rib_thickness, inner_height)
+             .translate((0, 0, wall_thickness/2)))
     
-    holes = (cq.Workplane("XY")
-            .pushPoints([
-                (hole_offset, hole_offset),
-                (-hole_offset, hole_offset),
-                (hole_offset, -hole_offset),
-                (-hole_offset, -hole_offset)
-            ])
-            .circle(hole_size/2)
-            .extrude(desk_height - top_thickness - 2*shell_thickness))
+    # 脚を組み立て
+    leg = (outer_leg
+           .cut(inner_void)
+           .union(rib_v)
+           .union(rib_h))
     
-    # 肉抜きを行った脚を作成
-    leg = outer_leg.cut(inner_cut).cut(holes)
+    # 位置に移動
+    leg = leg.translate((x, y, (desk_height - top_thickness)/2))
     
-    # 位置を移動
-    return leg.translate((x, y, (desk_height - top_thickness)/2))
+    return leg
 
-# 4本の脚を作成し配置
-leg_x_offset = desk_length/2 - leg_size
-leg_y_offset = desk_width/2 - leg_size
+def create_top_with_glass_recess():
+    """ガラス板用の凹みを持つ天板を作成する"""
+    # 基本の天板
+    base_top = (cq.Workplane("XY")
+               .box(desk_length, desk_width, top_thickness))
+    
+    # 天板の上面と下面のエッジにフィレット
+    base_top = (base_top.edges("|Z")
+               .fillet(top_fillet))
+    
+    # ガラス用の凹み
+    glass_length = desk_length - (glass_margin * 2)
+    glass_width = desk_width - (glass_margin * 2)
+    glass_recess = (cq.Workplane("XY")
+                   .box(glass_length, glass_width, glass_depth * 2)
+                   .translate((0, 0, top_thickness/2)))
+    
+    # ガラス収納部のエッジにフィレット
+    glass_recess = (glass_recess.edges("|Z")
+                   .fillet(edge_fillet))
+    
+    # 天板を組み立て
+    desktop = (base_top
+              .cut(glass_recess)
+              .translate((0, 0, desk_height - top_thickness/2)))
+    
+    return desktop
 
-leg1 = create_leg(-leg_x_offset, -leg_y_offset)
-leg2 = create_leg(-leg_x_offset, leg_y_offset)
-leg3 = create_leg(leg_x_offset, -leg_y_offset)
-leg4 = create_leg(leg_x_offset, leg_y_offset)
+# メインの組み立て処理
+def create_desk():
+    """改良版デスクを作成する"""
+    # 天板の作成
+    desktop = create_top_with_glass_recess()
+    
+    # 脚の配置を計算
+    leg_x_offset = desk_length/2 - leg_size
+    leg_y_offset = desk_width/2 - leg_size
+    
+    # 4本の脚を作成
+    legs = []
+    for x in [-leg_x_offset, leg_x_offset]:
+        for y in [-leg_y_offset, leg_y_offset]:
+            legs.append(create_hollow_leg(x, y))
+    
+    # すべてのパーツを組み合わせる
+    desk = desktop
+    for leg in legs:
+        desk = desk.union(leg)
+    
+    return desk
 
-# すべてのパーツを組み合わせる
-desk = desktop.union(leg1).union(leg2).union(leg3).union(leg4)
-
-# STLファイルとしてエクスポート
-cq.exporters.export(desk, "example/desk_improved.stl")
+# メイン処理
+if __name__ == "__main__":
+    # デスクを作成
+    final_desk = create_desk()
+    
+    # STLファイルとしてエクスポート
+    cq.exporters.export(final_desk, "example/desk_improved.stl")
