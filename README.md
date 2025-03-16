@@ -23,6 +23,19 @@
 - 全体の高さ：720mm
 - 脚のサイズ：50mm × 50mm（正方形）
 
+### 改良版の特徴
+
+`example/desk_improved.py`では、以下の改良が加えられています：
+
+- 天板の角を20mmの半径で丸く処理
+- 天板の裏側に大規模な肉抜きパターン
+  - 外周から30mmの余裕を確保
+  - 格子状の補強リブ構造（幅20mm）
+- 脚部の改良
+  - 角を10mmの半径で丸く処理
+  - 中空構造化（壁厚2mm）
+  - 四隅に装飾的な円形の肉抜き（直径15mm）
+
 ## 🛠️ 必要なもの
 
 - Python 3.x
@@ -39,15 +52,18 @@ pip install cadquery
 
 1. Pythonスクリプトを実行してSTLファイルを生成します：
 ```bash
-python desk.py
+python desk.py        # 基本バージョン
+python example/desk_improved.py  # 改良バージョン
 ```
 
-2. 生成された`desk.stl`ファイルは、以下のようなソフトウェアで開くことができます：
+2. 生成された`desk.stl`または`example/desk_improved.stl`ファイルは、以下のようなソフトウェアで開くことができます：
    - 3Dビューワー
    - 3Dプリンターのスライサーソフトウェア
    - CADソフトウェア
 
 ## 📁 ファイル構成
 
-- `desk.py`: 机のモデルを生成するPythonスクリプト
-- `desk.stl`: 生成された3Dモデルファイル
+- `desk.py`: 基本的な机のモデルを生成するPythonスクリプト
+- `desk.stl`: 基本バージョンの3Dモデルファイル
+- `example/desk_improved.py`: 改良版の机モデルを生成するスクリプト
+- `example/desk_improved.stl`: 改良版の3Dモデルファイル
